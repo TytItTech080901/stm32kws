@@ -49,6 +49,11 @@ class Executor:
             if num_utts == 0:
                 continue
             logits, _ = model(feats)
+            # 如果 backbone 做了时间下采样，需要同步调整 lengths
+            if logits.size(1) != feats.size(1):
+                scale = logits.size(1) / feats.size(1)
+                feats_lengths = (feats_lengths * scale).long()
+                feats_lengths = feats_lengths.clamp(max=logits.size(1))
             loss_type = args.get('criterion', 'max_pooling')
             loss, acc = criterion(loss_type,
                                   logits,
@@ -93,6 +98,11 @@ class Executor:
                 if num_utts == 0:
                     continue
                 logits, _ = model(feats)
+                # 如果 backbone 做了时间下采样，需要同步调整 lengths
+                if logits.size(1) != feats.size(1):
+                    scale = logits.size(1) / feats.size(1)
+                    feats_lengths = (feats_lengths * scale).long()
+                    feats_lengths = feats_lengths.clamp(max=logits.size(1))
                 loss, acc = criterion(args.get('criterion', 'max_pooling'),
                                       logits,
                                       target,

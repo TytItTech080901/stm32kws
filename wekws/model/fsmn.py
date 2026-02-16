@@ -557,4 +557,4 @@ if __name__ == '__main__':
     print('input shape: {}'.format(x.shape))
     print('output shape: {}'.format(y.shape))
 
-    print(fsmn.to_kaldi_net())
+    # print(fsmn.to_kaldi_net())

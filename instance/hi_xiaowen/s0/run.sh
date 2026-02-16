@@ -15,7 +15,7 @@ dir=exp/dscnn
 num_average=30
 score_checkpoint=$dir/avg_${num_average}.pt
 
-download_dir=./data/local # your data dir
+download_dir=~/data # your data dir
 
 . tools/parse_options.sh || exit 1;
 window_shift=50
