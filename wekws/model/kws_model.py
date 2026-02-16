@@ -28,6 +28,7 @@ from wekws.model.tcn import TCN, CnnBlock, DsCnnBlock
 from wekws.model.mdtc import MDTC
 from wekws.utils.cmvn import load_cmvn, load_kaldi_cmvn
 from wekws.model.fsmn import FSMN
+from wekws.model.dscnn import DSCNN
 
 
 class KWSModel(nn.Module):
@@ -168,6 +169,8 @@ def init_model(configs):
         backbone = FSMN(input_dim, input_affine_dim, num_layers, linear_dim,
                         proj_dim, left_order, right_order, left_stride,
                         right_stride, output_affine_dim, output_dim)
+    elif backbone_type == 'dscnn':
+        backbone = DSCNN(input_dim, output_dim)
 
     else:
         print('Unknown body type {}'.format(backbone_type))

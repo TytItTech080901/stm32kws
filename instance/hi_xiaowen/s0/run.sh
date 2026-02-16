@@ -1,19 +1,16 @@
-#!/bin/bash
-# Copyright 2021  Binbin Zhang(binbzha@qq.com)
-
 . ./path.sh
 
 stage=$1
 stop_stage=$2
 num_keywords=2
 
-config=conf/ds_tcn.yaml
+config=config/dscnn.yaml
 norm_mean=true
 norm_var=true
-gpus="0,1"
+gpus="1"
 
 checkpoint=
-dir=exp/ds_tcn
+dir=exp/dscnn
 
 num_average=30
 score_checkpoint=$dir/avg_${num_average}.pt
