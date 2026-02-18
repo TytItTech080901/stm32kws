@@ -7,7 +7,7 @@ num_keywords=2
 config=config/dscnn.yaml
 norm_mean=true
 norm_var=true
-gpus="1"
+gpus="0"
 
 checkpoint=
 dir=exp/dscnn
@@ -19,6 +19,7 @@ download_dir=~/data # your data dir
 
 . tools/parse_options.sh || exit 1;
 window_shift=50
+set -euo pipefail
 
 if [ ${stage} -le -1 ] && [ ${stop_stage} -ge -1 ]; then
   echo "Download and extracte all datasets"

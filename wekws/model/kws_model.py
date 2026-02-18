@@ -170,7 +170,10 @@ def init_model(configs):
                         proj_dim, left_order, right_order, left_stride,
                         right_stride, output_affine_dim, output_dim)
     elif backbone_type == 'dscnn':
-        backbone = DSCNN(input_dim, output_dim)
+        num_ds_layers = configs['backbone'].get('num_ds_layers', 4)
+        channels = configs['backbone'].get('channels', 64)
+        backbone = DSCNN(input_dim, num_ds_layers, channels)
+        hidden_dim = channels  # DSCNN 输出维度 = channels
 
     else:
         print('Unknown body type {}'.format(backbone_type))
@@ -208,6 +211,8 @@ def init_model(configs):
         activation_type = configs["activation"]["type"]
         if activation_type == 'identity':
             activation = nn.Identity()
+        elif activation_type == 'sigmoid':
+            activation = nn.Sigmoid()
         else:
             print('Unknown activation type {}'.format(activation_type))
             sys.exit(1)

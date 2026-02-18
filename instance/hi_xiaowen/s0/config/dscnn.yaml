@@ -22,21 +22,17 @@ dataset_conf:
         shuffle_size: 1500
     sort: false
     batch_conf:
-        batch_size: 256
+        batch_size: 128
 
 model:
     input_dim: 80
     preprocessing:
         type: none
-    hidden_dim: 128 # any value, not used in dscnn
+    hidden_dim: 64
     backbone:
         type: dscnn
-    classifier:
-        type: identity
-        dropout: 0.1
-    activation:
-        type: identity
-
+        num_ds_layers: 4
+        channels: 64
 
 optim: adam
 optim_conf:
@@ -47,4 +43,5 @@ training_config:
     grad_clip: 5
     max_epoch: 80
     log_interval: 10
+    criterion: max_pooling
 

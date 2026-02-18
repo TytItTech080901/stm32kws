@@ -198,7 +198,15 @@ def main():
         device = torch.device('cuda' if use_cuda else 'cpu')
         model = model.to(device)
 
-    optimizer = optim.Adam(model.parameters(), **configs['optim_conf'])
+    optim_type = configs.get('optim', 'adam').lower()
+    if optim_type == 'sgd':
+        optimizer = optim.SGD(model.parameters(), **configs['optim_conf'])
+    elif optim_type == 'adam':
+        optimizer = optim.Adam(model.parameters(), **configs['optim_conf'])
+    elif optim_type == 'adamw':
+        optimizer = optim.AdamW(model.parameters(), **configs['optim_conf'])
+    else:
+        raise ValueError(f'Unknown optimizer type: {optim_type}')
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
         optimizer,
         mode='min',
