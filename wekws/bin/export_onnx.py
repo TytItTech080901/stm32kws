@@ -41,8 +41,9 @@ def main():
         configs = yaml.load(fin, Loader=yaml.FullLoader)
     feature_dim = configs['model']['input_dim']
     model = init_model(configs['model'])
-    is_fsmn = configs['model']['backbone']['type'] == 'fsmn'
-    num_layers = configs['model']['backbone']['num_layers']
+    backbone_type = configs['model']['backbone']['type']
+    is_fsmn = backbone_type == 'fsmn'
+    num_layers = configs['model']['backbone'].get('num_layers', 0)
     if configs['training_config'].get('criterion', 'max_pooling') == 'ctc':
         # if we use ctc_loss, the logits need to be convert into probs
         model.forward = model.forward_softmax
@@ -52,46 +53,91 @@ def main():
     model.eval()
     # dummy_input: (batch, time, feature_dim)
     dummy_input = torch.randn(1, 100, feature_dim, dtype=torch.float)
-    cache = torch.zeros(1,
-                        model.hdim,
-                        model.backbone.padding,
-                        dtype=torch.float)
-    if is_fsmn:
-        cache = cache.unsqueeze(-1).expand(-1, -1, -1, num_layers)
-    dynamic_axes = {'input': {1: 'T'}, 'output': {1: 'T'}}
-    torch.onnx.export(model, (dummy_input, cache),
-                      args.onnx_model,
-                      input_names=['input', 'cache'],
-                      output_names=['output', 'r_cache'],
-                      dynamic_axes=dynamic_axes,
-                      opset_version=13,
-                      verbose=False,
-                      do_constant_folding=True)
 
-    # Add hidden dim and cache size
-    onnx_model = onnx.load(args.onnx_model)
-    meta = onnx_model.metadata_props.add()
-    meta.key, meta.value = 'cache_dim', str(model.hdim)
-    meta = onnx_model.metadata_props.add()
-    meta.key, meta.value = 'cache_len', str(model.backbone.padding)
-    onnx.save(onnx_model, args.onnx_model)
+    if backbone_type == 'dscnn':
+        # DSCNN 不使用 cache，用包装器去掉第二个输出，
+        # 否则 X-CUBE-AI 无法解析悬空的空 cache 输出
+        class DSCNNWrapper(torch.nn.Module):
+            def __init__(self, kws_model):
+                super().__init__()
+                self.kws_model = kws_model
 
-    # Verify onnx precision
-    torch_output = model(dummy_input, cache)
-    ort_sess = ort.InferenceSession(args.onnx_model)
-    onnx_output = ort_sess.run(None, {
-        'input': dummy_input.numpy(),
-        'cache': cache.numpy()
-    })
+            def forward(self, x):
+                cache = torch.zeros(0, 0, 0, dtype=x.dtype, device=x.device)
+                out, _ = self.kws_model(x, cache)
+                return out
 
-    if torch.allclose(torch_output[0],
-                      torch.tensor(onnx_output[0]), atol=1e-6) and \
-       torch.allclose(torch_output[1],
-                      torch.tensor(onnx_output[1]), atol=1e-6):
-        print('Export to onnx succeed!')
+        wrapper = DSCNNWrapper(model)
+        wrapper.eval()
+
+        dynamic_axes = {'input': {1: 'T'}, 'output': {1: 'T'}}
+        torch.onnx.export(wrapper, dummy_input,
+                          args.onnx_model,
+                          input_names=['input'],
+                          output_names=['output'],
+                          dynamic_axes=dynamic_axes,
+                          opset_version=13,
+                          verbose=False,
+                          do_constant_folding=True)
+
+        onnx_model = onnx.load(args.onnx_model)
+        onnx.save(onnx_model, args.onnx_model)
+
+        # Verify onnx precision
+        cache = torch.zeros(0, 0, 0, dtype=torch.float)
+        torch_output = model(dummy_input, cache)
+        ort_sess = ort.InferenceSession(args.onnx_model)
+        onnx_output = ort_sess.run(None, {
+            'input': dummy_input.numpy()
+        })
+
+        if torch.allclose(torch_output[0],
+                          torch.tensor(onnx_output[0]), atol=1e-6):
+            print('Export to onnx succeed!')
+        else:
+            print('Export to onnx succeed, but pytorch/onnx have different '
+                  'outputs when given the same input, please check!!!')
     else:
-        print('''Export to onnx succeed, but pytorch/onnx have different
-                 outputs when given the same input, please check!!!''')
+        cache = torch.zeros(1,
+                            model.hdim,
+                            model.backbone.padding,
+                            dtype=torch.float)
+        if is_fsmn:
+            cache = cache.unsqueeze(-1).expand(-1, -1, -1, num_layers)
+        dynamic_axes = {'input': {1: 'T'}, 'output': {1: 'T'}}
+        torch.onnx.export(model, (dummy_input, cache),
+                          args.onnx_model,
+                          input_names=['input', 'cache'],
+                          output_names=['output', 'r_cache'],
+                          dynamic_axes=dynamic_axes,
+                          opset_version=13,
+                          verbose=False,
+                          do_constant_folding=True)
+
+        # Add hidden dim and cache size
+        onnx_model = onnx.load(args.onnx_model)
+        meta = onnx_model.metadata_props.add()
+        meta.key, meta.value = 'cache_dim', str(model.hdim)
+        meta = onnx_model.metadata_props.add()
+        meta.key, meta.value = 'cache_len', str(model.backbone.padding)
+        onnx.save(onnx_model, args.onnx_model)
+
+        # Verify onnx precision
+        torch_output = model(dummy_input, cache)
+        ort_sess = ort.InferenceSession(args.onnx_model)
+        onnx_output = ort_sess.run(None, {
+            'input': dummy_input.numpy(),
+            'cache': cache.numpy()
+        })
+
+        if torch.allclose(torch_output[0],
+                          torch.tensor(onnx_output[0]), atol=1e-6) and \
+           torch.allclose(torch_output[1],
+                          torch.tensor(onnx_output[1]), atol=1e-6):
+            print('Export to onnx succeed!')
+        else:
+            print('Export to onnx succeed, but pytorch/onnx have different '
+                  'outputs when given the same input, please check!!!')
 
 
 if __name__ == '__main__':

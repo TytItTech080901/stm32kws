@@ -58,8 +58,6 @@ class DSCNN(nn.Module):
         ])
         # 只在时间维做 MaxPool，进一步下采样时间
         self.pooling = nn.MaxPool2d(kernel_size=(2, 1))
-        # 在频率维做自适应平均池化，压成 1，保留时间维
-        self.freq_pool = nn.AdaptiveAvgPool2d((None, 1))
 
     def forward(
         self,
@@ -85,10 +83,8 @@ class DSCNN(nn.Module):
             x = ds_layer(x)
         # pooling: 时间维减半 -> (B, C, T//4, D//2)
         x = self.pooling(x)
-        # 频率维池化到 1 -> (B, C, T//4, 1)
-        x = self.freq_pool(x)
-        # 去掉频率维 -> (B, C, T//4)
-        x = x.squeeze(3)
+        # 频率维求均值，压成 (B, C, T//4)（替代 AdaptiveAvgPool2d 以兼容 ONNX）
+        x = x.mean(dim=3)
         # 转为 (B, T//4, C)
         x = x.permute(0, 2, 1)
 
